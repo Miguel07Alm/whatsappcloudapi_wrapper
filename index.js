@@ -120,7 +120,6 @@ class WhatsappCloud {
                 throw new Error('"message" is required in making a request');
             }
         };
-
         this._mustHaveTemplateName = (templateName) => {
             if (!templateName) {
                 throw new Error('"templateName" is required in making a request');
@@ -250,6 +249,8 @@ class WhatsappCloud {
         };
         if (context) {
             body['context'] = context;
+            this._mustHaveMessageId(context["message_id"]);
+
         }
 
         let response = await this._fetchAssistant({
