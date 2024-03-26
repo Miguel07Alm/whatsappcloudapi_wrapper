@@ -3,6 +3,8 @@ const unirest = require('unirest');
 const signale = require('signale');
 const fs = require('fs');
 const messageParser = require('./msg_parser.js');
+/// <reference path="./index.d.ts" />
+
 
 class WhatsappCloud {
     constructor({
@@ -587,7 +589,7 @@ class WhatsappCloud {
         };
     }
 
-    async sendAudio({ recipientPhone, caption, file_path, file_name, url }) {
+    async sendAudio({ recipientPhone, caption, file_path, file_name, url, context }) {
         this._mustHaverecipientPhone(recipientPhone);
         if (file_path && url) {
             throw new Error(
@@ -610,6 +612,11 @@ class WhatsappCloud {
                 caption: caption || '',
             },
         };
+        if (context) {
+            body['context'] = context;
+            this._mustHaveMessageId(context["message_id"]);
+
+        }
         if (file_path) {
             let uploadedFile = await this._uploadMedia({
                 file_path,
