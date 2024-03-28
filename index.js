@@ -32,9 +32,11 @@ class WhatsappCloud {
         }
         this._getMediaType = ({file_path}) => {
             const extension = file_path.split('.').pop().toLowerCase();
-            for (const [mediaType, supportedExtensions] of Object.entries(this.supportedMediaTypes)) {
-                if (supportedExtensions.some(ext => ext.split('/')[1] === extension)) {
-                    return mediaType;
+            for (const [_, supportedExtensions] of Object.entries(this.supportedMediaTypes)) {
+                for (const type of supportedExtensions) {
+                    if (type.includes(extension)) {
+                        return type;
+                    }
                 }
             }
             return null;
@@ -168,7 +170,6 @@ class WhatsappCloud {
             const type = this._getMediaType({ file_path });
             console.log("🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:", type);
             return new Promise((resolve, reject) => {
-                const mediaFile = fs.createReadStream(file_path);
                 unirest(
                     'POST',
                     `https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}/media`
@@ -178,7 +179,7 @@ class WhatsappCloud {
                     })
                     .field('messaging_product', 'whatsapp')
                     .field('type', type)
-                    .attach('file', mediaFile)
+                    .field('file', file_path)
                     .end((res) => {
                         if (res.error) {
                             reject(res.error);
