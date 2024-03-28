@@ -14,7 +14,7 @@ class WhatsappCloud {
         WABA_ID,
     }) {
         this.accessToken = accessToken;
-        this.graphAPIVersion = graphAPIVersion || 'v13.0';
+        this.graphAPIVersion = graphAPIVersion || 'v18.0';
         this.senderPhoneNumberId = senderPhoneNumberId;
         this.baseUrl = `https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}`;
         this.WABA_ID = WABA_ID;
@@ -32,13 +32,11 @@ class WhatsappCloud {
         }
         this._getMediaType = ({file_path}) => {
             const extension = file_path.split('.').pop().toLowerCase();
-
             for (const [mediaType, supportedExtensions] of Object.entries(this.supportedMediaTypes)) {
                 if (supportedExtensions.some(ext => ext.split('/')[1] === extension)) {
                     return mediaType;
                 }
             }
-
             return null;
         }
         if (!this.accessToken) {
@@ -166,11 +164,11 @@ class WhatsappCloud {
         };
 
         this._uploadMedia = async ({ file_path, file_name }) => {
+            console.log("🚀 ~ WhatsappCloud ~ this._uploadMedia= ~ file_path:", file_path);
+            const type = this._getMediaType({ file_path });
+            console.log("🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:", type);
             return new Promise((resolve, reject) => {
                 const mediaFile = fs.createReadStream(file_path);
-                const type = this._getMediaType({file_path});
-                console.log("🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:", type)
-                // type = type || 'image';
                 unirest(
                     'POST',
                     `https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}/media`
@@ -179,7 +177,7 @@ class WhatsappCloud {
                         Authorization: `Bearer ${this.accessToken}`,
                     })
                     .field('messaging_product', 'whatsapp')
-                    .field('type', type || 'image')
+                    .field('type', type)
                     .attach('file', mediaFile)
                     .end((res) => {
                         if (res.error) {
