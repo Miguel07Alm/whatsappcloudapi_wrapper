@@ -18,7 +18,29 @@ class WhatsappCloud {
         this.senderPhoneNumberId = senderPhoneNumberId;
         this.baseUrl = `https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}`;
         this.WABA_ID = WABA_ID;
+        this.audioSupportedMediaTypes = ["audio/aac", "audio/mp4", "audio/mpeg", "audio/amr", "audio/ogg"];
+        this.documentSupportedMediaTypes = ["text/plain", "application/pdf", "application/vnd.ms-powerpoint", "application/msword", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+        this.imageSupportedMediaTypes = ["image/jpeg", "image/png"];
+        this.videoSupportedMediaTypes = ["video/mp4", "video/3gp"];
+        this.stickerSupportedMediaTypes = ["image/webp"];
+        this.supportedMediaTypes = {
+            audio: this.audioSupportedMediaTypes,
+            document: this.documentSupportedMediaTypes,
+            image: this.imageSupportedMediaTypes,
+            video: this.videoSupportedMediaTypes,
+            sticker: this.stickerSupportedMediaTypes
+        }
+        this._getMediaType = ({filename}) => {
+            const extension = filename.split('.').pop().toLowerCase();
 
+            for (const [mediaType, supportedExtensions] of Object.entries(this.supportedMediaTypes)) {
+                if (supportedExtensions.some(ext => ext.split('/')[1] === extension)) {
+                    return mediaType;
+                }
+            }
+
+            return null;
+        }
         if (!this.accessToken) {
             throw new Error('Missing "accessToken"');
         }
@@ -146,6 +168,8 @@ class WhatsappCloud {
         this._uploadMedia = async ({ file_path, file_name }) => {
             return new Promise((resolve, reject) => {
                 const mediaFile = fs.createReadStream(file_path);
+                const type = this._getMediaType({filename});
+                console.log("🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:", type)
                 // type = type || 'image';
                 unirest(
                     'POST',
@@ -155,6 +179,7 @@ class WhatsappCloud {
                         Authorization: `Bearer ${this.accessToken}`,
                     })
                     .field('messaging_product', 'whatsapp')
+                    .field('type', type || 'image')
                     .attach('file', mediaFile)
                     .end((res) => {
                         if (res.error) {
