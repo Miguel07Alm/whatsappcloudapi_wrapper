@@ -30,8 +30,8 @@ class WhatsappCloud {
             video: this.videoSupportedMediaTypes,
             sticker: this.stickerSupportedMediaTypes
         }
-        this._getMediaType = ({filename}) => {
-            const extension = filename.split('.').pop().toLowerCase();
+        this._getMediaType = ({file_path}) => {
+            const extension = file_path.split('.').pop().toLowerCase();
 
             for (const [mediaType, supportedExtensions] of Object.entries(this.supportedMediaTypes)) {
                 if (supportedExtensions.some(ext => ext.split('/')[1] === extension)) {
@@ -168,7 +168,7 @@ class WhatsappCloud {
         this._uploadMedia = async ({ file_path, file_name }) => {
             return new Promise((resolve, reject) => {
                 const mediaFile = fs.createReadStream(file_path);
-                const type = this._getMediaType({filename});
+                const type = this._getMediaType({file_path});
                 console.log("🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:", type)
                 // type = type || 'image';
                 unirest(
