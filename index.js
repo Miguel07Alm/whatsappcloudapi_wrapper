@@ -608,9 +608,6 @@ class WhatsappCloud {
             recipient_type: 'individual',
             to: recipientPhone,
             type: 'audio',
-            audio: {
-                caption: caption || '',
-            },
         };
         if (context) {
             body['context'] = context;
