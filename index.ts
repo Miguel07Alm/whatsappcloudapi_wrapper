@@ -1,46 +1,89 @@
 'use strict';
 const unirest = require('unirest');
-const signale = require('signale');
-const fs = require('fs');
-const messageParser = require('./msg_parser.js');
-/// <reference path="./index.d.ts" />
+import * as signale from 'signale';
+import * as fs from 'fs';
+import messageParser from './msg_parser';
 
+interface WhatsappCloudOptions {
+    accessToken: string;
+    graphAPIVersion?: string;
+    senderPhoneNumberId: string;
+    WABA_ID: string;
+}
 
+interface SendTextOptions {
+    message: string;
+    recipientPhone: string;
+    context?: any;
+}
+interface SendMediaOptions {
+    recipientPhone?: string;
+    file_path?: string;
+    file_name?: string;
+    url?: string;
+    context?: {
+        message_id: string;
+    };
+}
+interface CaptionOptions extends SendMediaOptions{
+    caption?: string;
+}
+interface SendTemplateOptions {
+    templateName: string;
+    languageCode: string;
+    components: any[];
+    recipientPhone: string;
+}
 class WhatsappCloud {
+    private accessToken: string;
+    private graphAPIVersion: string;
+    private senderPhoneNumberId: string;
+    private baseUrl: string;
+    private WABA_ID: string;
+    private audioSupportedMediaTypes: string[];
+    private documentSupportedMediaTypes: string[];
+    private imageSupportedMediaTypes: string[];
+    private videoSupportedMediaTypes: string[];
+    private stickerSupportedMediaTypes: string[];
+    private supportedMediaTypes: { [key: string]: string[] };
     constructor({
         accessToken,
         graphAPIVersion,
         senderPhoneNumberId,
         WABA_ID,
-    }) {
+    }: WhatsappCloudOptions) {
         this.accessToken = accessToken;
         this.graphAPIVersion = graphAPIVersion || 'v18.0';
         this.senderPhoneNumberId = senderPhoneNumberId;
         this.baseUrl = `https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}`;
         this.WABA_ID = WABA_ID;
-        this.audioSupportedMediaTypes = ["audio/aac", "audio/mp4", "audio/mpeg", "audio/amr", "audio/ogg"];
-        this.documentSupportedMediaTypes = ["text/plain", "application/pdf", "application/vnd.ms-powerpoint", "application/msword", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
-        this.imageSupportedMediaTypes = ["image/jpeg", "image/png"];
-        this.videoSupportedMediaTypes = ["video/mp4", "video/3gp"];
-        this.stickerSupportedMediaTypes = ["image/webp"];
+        this.audioSupportedMediaTypes = [
+            'audio/aac',
+            'audio/mp4',
+            'audio/mpeg',
+            'audio/amr',
+            'audio/ogg',
+        ];
+        this.documentSupportedMediaTypes = [
+            'text/plain',
+            'application/pdf',
+            'application/vnd.ms-powerpoint',
+            'application/msword',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ];
+        this.imageSupportedMediaTypes = ['image/jpeg', 'image/png'];
+        this.videoSupportedMediaTypes = ['video/mp4', 'video/3gp'];
+        this.stickerSupportedMediaTypes = ['image/webp'];
         this.supportedMediaTypes = {
             audio: this.audioSupportedMediaTypes,
             document: this.documentSupportedMediaTypes,
             image: this.imageSupportedMediaTypes,
             video: this.videoSupportedMediaTypes,
-            sticker: this.stickerSupportedMediaTypes
-        }
-        this._getMediaType = ({file_path}) => {
-            const extension = file_path.split('.').pop().toLowerCase();
-            for (const [_, supportedExtensions] of Object.entries(this.supportedMediaTypes)) {
-                for (const type of supportedExtensions) {
-                    if (type.includes(extension)) {
-                        return type;
-                    }
-                }
-            }
-            return null;
-        }
+            sticker: this.stickerSupportedMediaTypes,
+        };
         if (!this.accessToken) {
             throw new Error('Missing "accessToken"');
         }
@@ -48,195 +91,222 @@ class WhatsappCloud {
         if (!this.senderPhoneNumberId) {
             throw new Error('Missing "senderPhoneNumberId".');
         }
-
-        if (graphAPIVersion) {
-            signale.warn(
-                `Please note, the default "graphAPIVersion" is v13.0. You are using ${graphAPIVersion}. This may result in quirky behavior.`
-            );
+    }
+    private _mustHaveParameter(
+        param: any | any[] | null | undefined,
+        paramName: string
+    ): void {
+        if (!param) {
+            throw new Error(`"${paramName}" is required in making a request`);
         }
+    }
 
-        this._fetchAssistant = ({ baseUrl, url, method, headers, body }) => {
-            return new Promise((resolve, reject) => {
-                let defaultHeaders = () => {
-                    let output = {
-                        'Content-Type': 'application/json',
-                        'Accept-Language': 'en_US',
-                        Accept: 'application/json',
-                    };
-                    if (this.accessToken) {
-                        output['Authorization'] = `Bearer ${this.accessToken}`;
-                    }
-                    return output;
-                };
-                let defaultBody = {};
-                let defaultMethod = 'GET';
-
-                if (!url) {
-                    throw new Error('"url" is required in making a request');
-                }
-
-                if (!method) {
-                    signale.warn(
-                        `WARNING: "method" is missing. The default method will default to ${defaultMethod}. If this is not what you want, please specify the method.`
-                    );
-                }
-
-                if (!headers) {
-                    signale.warn(`WARNING: "headers" is missing.`);
-                }
-
-                if (method?.toUpperCase() === 'POST' && !body) {
-                    signale.warn(
-                        `WARNING: "body" is missing. The default body will default to ${JSON.stringify(
-                            defaultBody
-                        )}. If this is not what you want, please specify the body.`
-                    );
-                }
-
-                method = method?.toUpperCase() || defaultMethod;
-                headers = {
-                    ...defaultHeaders(),
-                    ...headers,
-                };
-                body = body || defaultBody;
-                this.baseUrl = baseUrl || this.baseUrl;
-                let fullUrl = `${this.baseUrl}${url}`;
-
-                unirest(method, fullUrl)
-                    .headers(headers)
-                    .send(JSON.stringify(body))
-                    .end(function (res) {
-                        if (res.error) {
-                            let errorObject = () => {
-                                try {
-                                    return (
-                                        res.body?.error ||
-                                        JSON.parse(res.raw_body)
-                                    );
-                                } catch (e) {
-                                    return {
-                                        error: res.raw_body,
-                                    };
-                                }
-                            };
-                            reject({
-                                status: 'failed',
-                                ...errorObject(),
-                            });
-                        } else {
-                            resolve({
-                                status: 'success',
-                                data: res.body,
-                            });
-                        }
-                    });
-            });
-        };
-        this._mustHaverecipientPhone = (recipientPhone) => {
-            if (!recipientPhone) {
-                throw new Error(
-                    '"recipientPhone" is required in making a request'
-                );
-            }
-        };
-        this._mustHaveMessage = (message) => {
-            if (!message) {
-                throw new Error('"message" is required in making a request');
-            }
-        };
-        this._mustHaveTemplateName = (templateName) => {
-            if (!templateName) {
-                throw new Error('"templateName" is required in making a request');
-            }
-        };
-        this._mustHaveComponents = (components) => {
-            if (!components) {
-                throw new Error('"components" is required in making a request');
-            }
-        };
-        this._mustHaveLanguageCode = (languageCode) => {
-            if (!languageCode) {
-                throw new Error('"languageCode" is required in making a request');
-            }
-        };
-        this._mustHaveMessageId = (messageId) => {
-            if (!messageId) {
-                throw new Error('"messageId" is required in making a request');
-            }
-        };
-
-        this._uploadMedia = async ({ file_path, file_name }) => {
-            console.log("🚀 ~ WhatsappCloud ~ this._uploadMedia= ~ file_path:", file_path);
+    private async _uploadMedia({
+        file_path,
+        file_name,
+    }: {
+        file_path: string;
+        file_name?: string;
+    }): Promise<any> {
+        try {
+            console.log(
+                '🚀 ~ WhatsappCloud ~ this._uploadMedia= ~ file_path:',
+                file_path
+            );
             const type = this._getMediaType({ file_path });
-            console.log("🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:", type);
-
+            console.log('🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:', type);
+            if (!type) {
+                throw new Error("The type of the file isn't supported!");
+            }
             const formData = new FormData();
-            formData.append('file', fs.createReadStream(file_path));
-            formData.append('type', type);
+            const fileData = fs.readFileSync(file_path);
+
+            const blob = new Blob([fileData], { type });
+
+            const file = new File([blob], file_path.split('/').pop() as string);
+
+            formData.append('file', file);
             formData.append('messaging_product', 'whatsapp');
+            formData.append('type', type);
 
             const requestOptions = {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${this.accessToken}`,
                 },
-                body: formData
+                body: formData,
             };
 
-            try {
-                const response = await fetch(`https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}/media`, requestOptions);
-                const responseData = await response.json();
+            const response = await fetch(
+                `https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}/media`,
+                requestOptions
+            );
+            const responseData = await response.json();
 
-                if (!response.ok) {
-                    throw new Error(responseData.error.message);
-                }
+            if (!response.ok) {
+                console.error(responseData.error.message);
+                throw new Error(responseData.error.message);
+            }
 
-                return {
-                    status: 'success',
-                    media_id: responseData.id,
-                    file_name: file_name || null,
+            return {
+                status: 'success',
+                media_id: responseData.id,
+                file_name: file_name || null,
+            };
+        } catch (error) {
+            throw new Error('Error en la subida del medio: ' + error.message);
+        }
+    }
+
+    private async _retrieveMediaUrl({
+        media_id,
+    }: {
+        media_id: string;
+    }): Promise<string> {
+        const response = await this._fetchAssistant({
+            baseUrl: `https://graph.facebook.com/${this.graphAPIVersion}`,
+            url: `/${media_id}`,
+            method: 'GET',
+        });
+
+        if (response.status === 'success') {
+            return response.data;
+        }
+        throw new Error(response.error);
+    }
+
+    private async UNTESTED_downloadMediaViaUrl({
+        media_url,
+    }: {
+        media_url: string;
+    }): Promise<any> {
+        return new Promise((resolve, reject) => {
+            unirest('GET', `${media_url}?access_token=${this.accessToken}`)
+                .headers({
+                    Authorization: `Bearer ${this.accessToken}`,
+                })
+                .end((res: any) => {
+                    if (res.error) {
+                        reject(res.error);
+                    } else {
+                        let responseHeaders = res.headers;
+                        resolve({
+                            status: 'success',
+                            // ...res,
+                            ...responseHeaders,
+                        });
+                    }
+                });
+        });
+    }
+    private async _fetchAssistant({
+        baseUrl,
+        url,
+        method,
+        headers,
+        body,
+    }: {
+        baseUrl?: string;
+        url: string;
+        method: string;
+        body?: Record<string, any> | string;
+        headers?: Record<string, string>;
+    }): Promise<{
+        status: 'success' | 'failed';
+        data: any;
+        error?: any;
+    }> {
+        return new Promise((resolve, reject) => {
+            let defaultHeaders = () => {
+                let output = {
+                    'Content-Type': 'application/json',
+                    'Accept-Language': 'en_US',
+                    Accept: 'application/json',
                 };
-            } catch (error) {
-                throw new Error('Error en la subida del medio: ' + error.message);
-            }
-        };
-        this._retrieveMediaUrl = async ({ media_id }) => {
-            const response = await this._fetchAssistant({
-                baseUrl: `https://graph.facebook.com/${this.graphAPIVersion}`,
-                url: `/${media_id}`,
-                method: 'GET',
-            });
+                if (this.accessToken) {
+                    output['Authorization'] = `Bearer ${this.accessToken}`;
+                }
+                return output;
+            };
+            let defaultBody = {};
+            let defaultMethod = 'GET';
 
-            if (response.status === 'success') {
-                return response.data;
+            if (!url) {
+                throw new Error('"url" is required in making a request');
             }
-            throw new Error(response.error);
-        };
 
-        this.UNTESTED_downloadMediaViaUrl = async ({ media_url }) => {
-            return new Promise((resolve, reject) => {
-                unirest('GET', `${media_url}?access_token=${this.accessToken}`)
-                    .headers({
-                        Authorization: `Bearer ${this.accessToken}`,
-                    })
-                    .end((res) => {
-                        if (res.error) {
-                            reject(res.error);
-                        } else {
-                            let responseHeaders = res.headers;
-                            resolve({
-                                status: 'success',
-                                // ...res,
-                                ...responseHeaders,
-                            });
-                        }
-                    });
-            });
-        };
+            if (!method) {
+                signale.warn(
+                    `WARNING: "method" is missing. The default method will default to ${defaultMethod}. If this is not what you want, please specify the method.`
+                );
+            }
+
+            if (!headers) {
+                signale.warn(`WARNING: "headers" is missing.`);
+            }
+
+            if (method?.toUpperCase() === 'POST' && !body) {
+                signale.warn(
+                    `WARNING: "body" is missing. The default body will default to ${JSON.stringify(
+                        defaultBody
+                    )}. If this is not what you want, please specify the body.`
+                );
+            }
+
+            method = method?.toUpperCase() || defaultMethod;
+            headers = {
+                ...defaultHeaders(),
+                ...headers,
+            };
+            body = body || defaultBody;
+            this.baseUrl = baseUrl || this.baseUrl;
+            let fullUrl = `${this.baseUrl}${url}`;
+
+            unirest(method, fullUrl)
+                .headers(headers)
+                .send(JSON.stringify(body))
+                .end(function (res) {
+                    if (res.error) {
+                        let errorObject = () => {
+                            try {
+                                return (
+                                    res.body?.error || JSON.parse(res.raw_body)
+                                );
+                            } catch (e) {
+                                return {
+                                    error: res.raw_body,
+                                };
+                            }
+                        };
+                        reject({
+                            status: 'failed',
+                            ...errorObject(),
+                        });
+                    } else {
+                        resolve({
+                            status: 'success',
+                            data: res.body,
+                        });
+                    }
+                });
+        });
+    }
+    private _getMediaType({ file_path }) {
+        const extension = file_path.split('.').pop().toLowerCase();
+        for (const [_, supportedExtensions] of Object.entries(
+            this.supportedMediaTypes
+        )) {
+            for (const type of supportedExtensions) {
+                if (type.includes(extension)) {
+                    return type;
+                }
+            }
+        }
+        return null;
     }
 
     async createQRCodeMessage({ message, imageType = 'png' }) {
-        this._mustHaveMessage(message);
+        this._mustHaveParameter(message, 'message');
         if (!['png', 'svg'].includes(imageType)) {
             throw new Error(`"imageType" must be either "png" or "svg"`);
         }
@@ -267,9 +337,9 @@ class WhatsappCloud {
 
         return response;
     }
-    async sendText({ message, recipientPhone, context }) {
-        this._mustHaverecipientPhone(recipientPhone);
-        this._mustHaveMessage(message);
+    async sendText({ message, recipientPhone, context }: SendTextOptions) {
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
+        this._mustHaveParameter(message, 'message');
         let body = {
             messaging_product: 'whatsapp',
             to: recipientPhone,
@@ -281,8 +351,7 @@ class WhatsappCloud {
         };
         if (context) {
             body['context'] = context;
-            this._mustHaveMessageId(context["message_id"]);
-
+            this._mustHaveParameter(context['message_id'], 'message_id');
         }
 
         let response = await this._fetchAssistant({
@@ -293,23 +362,28 @@ class WhatsappCloud {
 
         return response;
     }
-    async sendTemplate({templateName,languageCode,components,recipientPhone} ) {
-        this._mustHaverecipientPhone(recipientPhone);
-        this._mustHaveTemplateName(templateName);
-        this._mustHaveComponents(components)
-        this._mustHaveLanguageCode(languageCode)
+    async sendTemplate({
+        templateName,
+        languageCode,
+        components,
+        recipientPhone,
+    }: SendTemplateOptions) {
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
+        this._mustHaveParameter(templateName, 'templateName');
+        this._mustHaveParameter(components, 'components');
+        this._mustHaveParameter(languageCode, 'languageCode');
         let body = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": recipientPhone,
-            "type": "template",
-            "template": {
-              "name": templateName,
-              "language": {
-                "code": languageCode
-              },
-              "components": components
-            }
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: recipientPhone,
+            type: 'template',
+            template: {
+                name: templateName,
+                language: {
+                    code: languageCode,
+                },
+                components: components,
+            },
         };
 
         let response = await this._fetchAssistant({
@@ -320,11 +394,10 @@ class WhatsappCloud {
 
         return response;
     }
-    
 
     async markMessageAsRead({ message_id }) {
         try {
-            this._mustHaveMessageId(message_id);
+            this._mustHaveParameter(message_id, 'message_id');
             let response = await this._fetchAssistant({
                 url: `/messages`,
                 method: 'POST',
@@ -354,12 +427,13 @@ class WhatsappCloud {
     }
 
     async sendSimpleButtons({ recipientPhone, message, listOfButtons }) {
-        this._mustHaveMessage(message);
-        this._mustHaverecipientPhone(recipientPhone);
-        
-        if(!listOfButtons) throw new Error('listOfButtons cannot be empty');
-        if(listOfButtons.length > 3) throw new Error('listOfButtons cannot be bigger than 3 elements');
-        
+        this._mustHaveParameter(message, 'message');
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
+
+        if (!listOfButtons) throw new Error('listOfButtons cannot be empty');
+        if (listOfButtons.length > 3)
+            throw new Error('listOfButtons cannot be bigger than 3 elements');
+
         let validButtons = listOfButtons
             .map((button) => {
                 if (!button.title) {
@@ -421,7 +495,7 @@ class WhatsappCloud {
         footerText,
         listOfSections,
     }) {
-        this._mustHaverecipientPhone(recipientPhone);
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
 
         if (!bodyText)
             throw new Error('"bodyText" is required in making a request');
@@ -529,8 +603,14 @@ class WhatsappCloud {
         return response;
     }
 
-    async sendImage({ recipientPhone, caption, file_path, file_name, url }) {
-        this._mustHaverecipientPhone(recipientPhone);
+    async sendImage({
+        recipientPhone,
+        caption,
+        file_path,
+        file_name,
+        url,
+    }: CaptionOptions) {
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
         if (file_path && url) {
             throw new Error(
                 'You can only send an image in your "file_path" or an image in a publicly available "url". Provide either "file_path" or "url".'
@@ -574,8 +654,13 @@ class WhatsappCloud {
             body,
         };
     }
-    async sendVideo({ recipientPhone, caption, file_path, file_name, url }) {
-        this._mustHaverecipientPhone(recipientPhone);
+    async sendVideo({
+        recipientPhone,
+        file_path,
+        file_name,
+        url,
+    }: CaptionOptions) {
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
         if (file_path && url) {
             throw new Error(
                 'You can only send an video in your "file_path" or an video in a publicly available "url". Provide either "file_path" or "url".'
@@ -593,9 +678,6 @@ class WhatsappCloud {
             recipient_type: 'individual',
             to: recipientPhone,
             type: 'video',
-            video: {
-                caption: caption || '',
-            },
         };
         if (file_path) {
             let uploadedFile = await this._uploadMedia({
@@ -619,8 +701,14 @@ class WhatsappCloud {
         };
     }
 
-    async sendAudio({ recipientPhone, caption, file_path, file_name, url, context }) {
-        this._mustHaverecipientPhone(recipientPhone);
+    async sendAudio({
+        recipientPhone,
+        file_path,
+        file_name,
+        url,
+        context,
+    }: SendMediaOptions) {
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
         if (file_path && url) {
             throw new Error(
                 'You can only send an audio in your "file_path" or an audio in a publicly available "url". Provide either "file_path" or "url".'
@@ -637,12 +725,11 @@ class WhatsappCloud {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
             to: recipientPhone,
-            type: 'audio', 
+            type: 'audio',
         };
         if (context) {
             body['context'] = context;
-            this._mustHaveMessageId(context["message_id"]);
-
+            this._mustHaveParameter(context['message_id'], 'message_id');
         }
         if (file_path) {
             let uploadedFile = await this._uploadMedia({
@@ -667,7 +754,7 @@ class WhatsappCloud {
     }
 
     async sendDocument({ recipientPhone, caption, file_path, url }) {
-        this._mustHaverecipientPhone(recipientPhone);
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
         if (file_path && url) {
             throw new Error(
                 'You can only send a document in your "file_path" or one that is in a publicly available "url". Provide either "file_path" or "url".'
@@ -718,7 +805,7 @@ class WhatsappCloud {
     }
 
     async sendLocation({ recipientPhone, latitude, longitude, name, address }) {
-        this._mustHaverecipientPhone(recipientPhone);
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
         if (!latitude || !longitude) {
             throw new Error(
                 '"latitude" and "longitude" are required in making a request'
@@ -754,7 +841,7 @@ class WhatsappCloud {
     }
 
     async sendContact({ recipientPhone, contact_profile }) {
-        this._mustHaverecipientPhone(recipientPhone);
+        this._mustHaveParameter(recipientPhone, 'recipientPhone');
 
         let format_address = (address) => {
             let address_obj = {
@@ -865,7 +952,15 @@ class WhatsappCloud {
                 return birthday;
             }
         };
-
+        interface Fields {
+            addresses: any[];
+            emails: any[];
+            name: any;
+            org: any;
+            phones: any[];
+            urls: any[];
+            birthday: string;
+        }
         let format_contact = ({
             addresses,
             emails,
@@ -874,8 +969,8 @@ class WhatsappCloud {
             phones,
             urls,
             birthday,
-        }) => {
-            let fields = {
+        }: Fields) => {
+            let fields: Fields = {
                 addresses: [],
                 emails: [],
                 name: {},
@@ -946,4 +1041,4 @@ class WhatsappCloud {
         return messageParser({ requestBody, currentWABA_ID: this.WABA_ID });
     }
 }
-module.exports = WhatsappCloud;
+export default WhatsappCloud;

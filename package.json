@@ -8,7 +8,8 @@
     "scripts": {
         "prettier": "prettier --ignore-path .prettierignore --config prettier.config.js --write .",
         "quickpush": "cls && git status && git add * && git commit * -m \"Updated Code\" && git push",
-        "npmpublish": "npm run prettier && np"
+        "npmpublish": "npm run prettier && np",
+        "test": "jest"
     },
     "dependencies": {
         "signale": "^1.4.0",
@@ -43,5 +44,16 @@
     "homepage": "https://github.com/daggieblanqx/whatsappcloudapi_wrapper#readme",
     "engines": {
         "node": ">=10"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.24.3",
+        "@babel/preset-env": "^7.24.3",
+        "@babel/preset-typescript": "^7.24.1",
+        "@types/jest": "^29.5.12",
+        "babel-jest": "^29.7.0",
+        "dotenv": "^16.4.5",
+        "jest": "^29.7.0",
+        "ts-jest": "^29.1.2",
+        "ts-node": "^10.9.2"
     }
 }
