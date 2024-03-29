@@ -169,30 +169,36 @@ class WhatsappCloud {
             console.log("🚀 ~ WhatsappCloud ~ this._uploadMedia= ~ file_path:", file_path);
             const type = this._getMediaType({ file_path });
             console.log("🚀 ~ WhatsappCloud ~ returnnewPromise ~ type:", type);
-            return new Promise((resolve, reject) => {
-                unirest(
-                    'POST',
-                    `https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}/media`
-                )
-                    .headers({
-                        Authorization: `Bearer ${this.accessToken}`,
-                    })
-                    .field('messaging_product', 'whatsapp')
-                    .field('type', type)
-                    .field('file', file_path)
-                    .end((res) => {
-                        if (res.error) {
-                            reject(res.error);
-                        } else {
-                            let response = JSON.parse(res.raw_body);
-                            resolve({
-                                status: 'success',
-                                media_id: response.id,
-                                file_name: file_name || null,
-                            });
-                        }
-                    });
-            });
+
+            const formData = new FormData();
+            formData.append('file', fs.createReadStream(file_path));
+            formData.append('type', type);
+            formData.append('messaging_product', 'whatsapp');
+
+            const requestOptions = {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${this.accessToken}`,
+                },
+                body: formData
+            };
+
+            try {
+                const response = await fetch(`https://graph.facebook.com/${this.graphAPIVersion}/${this.senderPhoneNumberId}/media`, requestOptions);
+                const responseData = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(responseData.error.message);
+                }
+
+                return {
+                    status: 'success',
+                    media_id: responseData.id,
+                    file_name: file_name || null,
+                };
+            } catch (error) {
+                throw new Error('Error en la subida del medio: ' + error.message);
+            }
         };
         this._retrieveMediaUrl = async ({ media_id }) => {
             const response = await this._fetchAssistant({
@@ -631,7 +637,7 @@ class WhatsappCloud {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
             to: recipientPhone,
-            type: 'audio',
+            type: 'audio', 
         };
         if (context) {
             body['context'] = context;
