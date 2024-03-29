@@ -938,11 +938,7 @@ class WhatsappCloud {
                 return null;
             } else {
                 //ensure it is a valid date
-                function isValidDate(dateObject) {
-                    return new Date(dateObject).toString() !== 'Invalid Date';
-                }
-
-                if (!isValidDate(birthday)) {
+                if (!this.isValidDate(birthday)) {
                     throw new Error(
                         'Provide a valid date in format: "YYYY-MM-DD"'
                     );
@@ -1035,7 +1031,9 @@ class WhatsappCloud {
     async getUserProfilePicture({ recipientPhone }) {}
 
     async getUserStatusPicture({ recipientPhone }) {}
-
+    private isValidDate(dateObject) {
+                    return new Date(dateObject).toString() !== 'Invalid Date';
+                }
     parseMessage(requestBody) {
         return messageParser({ requestBody, currentWABA_ID: this.WABA_ID });
     }
