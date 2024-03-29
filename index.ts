@@ -120,12 +120,10 @@ class WhatsappCloud {
             }
             const formData = new FormData();
             const fileData = fs.readFileSync(file_path);
-
             const blob = new Blob([fileData], { type });
 
-            const file = new File([blob], file_path.split('/').pop() as string);
+            formData.append('file', blob);
 
-            formData.append('file', file);
             formData.append('messaging_product', 'whatsapp');
             formData.append('type', type);
 
@@ -147,7 +145,7 @@ class WhatsappCloud {
                 console.error(responseData.error.message);
                 throw new Error(responseData.error.message);
             }
-
+            console.log(JSON.stringify(responseData));
             return {
                 status: 'success',
                 media_id: responseData.id,
@@ -726,6 +724,7 @@ class WhatsappCloud {
             recipient_type: 'individual',
             to: recipientPhone,
             type: 'audio',
+            audio: {}
         };
         if (context) {
             body['context'] = context;
