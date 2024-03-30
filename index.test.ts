@@ -14,19 +14,19 @@ describe('WhatsappCloud', () => {
     });
 
     describe('sendText', () => {
-        it('debería enviar un mensaje de texto', async () => {
+        it('should send a text message', async () => {
             const response = await whatsappCloud.sendText({
-                message: 'Hola, este es un mensaje de prueba',
+                message: 'Hello, this is a test message',
                 recipientPhone: process.env.RECIPIENTPHONE!,
             });
 
             expect(response.status).toBe('success');
         });
 
-        it('debería lanzar un error si falta el número de teléfono del destinatario', async () => {
+        it('should throw an error if recipient phone number is missing', async () => {
             try {
                 await whatsappCloud.sendText({
-                    message: 'Mensaje sin destinatario',
+                    message: 'Message without recipient',
                     recipientPhone: '',
                 });
             } catch (error) {
@@ -38,21 +38,21 @@ describe('WhatsappCloud', () => {
     });
 
     describe('sendImage', () => {
-        it('debería enviar una imagen desde una URL', async () => {
+        it('should send an image from a URL', async () => {
             const response = await whatsappCloud.sendImage({
                 recipientPhone: process.env.RECIPIENTPHONE!,
-                caption: 'Imagen de prueba',
+                caption: 'Test Image',
                 url: 'https://raw.githubusercontent.com/DaggieBlanqx/whatsappcloudapi_wrapper/main/static_files/379234-whatsapp-cloud-api.jpeg',
             });
 
             expect(response.response.status).toBe('success');
         });
 
-        it('debería lanzar un error si no se proporciona ni file_path ni url', async () => {
+        it('should throw an error if neither file_path nor URL is provided', async () => {
             try {
                 await whatsappCloud.sendImage({
                     recipientPhone: process.env.RECIPIENTPHONE!,
-                    caption: 'Imagen sin archivo ni URL',
+                    caption: 'Image without file or URL',
                 });
             } catch (error) {
                 expect(error.message).toBe(
@@ -63,7 +63,7 @@ describe('WhatsappCloud', () => {
     });
 
     describe('sendAudio', () => {
-        it('debería lanzar un error si no se proporciona ni file_path ni url', async () => {
+        it('should throw an error if neither file_path nor URL is provided', async () => {
             try {
                 await whatsappCloud.sendAudio({
                     recipientPhone: process.env.RECIPIENTPHONE!,
@@ -74,12 +74,12 @@ describe('WhatsappCloud', () => {
                 );
             }
         });
-        it('debería lanzar un error si se proporciona el file_path y la url', async () => {
+        it('should throw an error if both file_path and URL are provided', async () => {
             try {
                 await whatsappCloud.sendAudio({
                     recipientPhone: process.env.RECIPIENTPHONE!,
-                    file_path: "",
-                    url: ""
+                    file_path: '',
+                    url: '',
                 });
             } catch (error) {
                 expect(error.message).toBe(
@@ -88,14 +88,47 @@ describe('WhatsappCloud', () => {
             }
         });
 
-        it('debería enviar un audio desde el file_path', async () => {
+        it('should send an audio from the file_path', async () => {
             const response = await whatsappCloud.sendAudio({
-                    recipientPhone: process.env.RECIPIENTPHONE!,
-                    file_path: 'example.aac',
-                });
+                recipientPhone: process.env.RECIPIENTPHONE!,
+                file_path: 'example.aac',
+            });
             expect(response.response.status).toBe('success');
-
-            
         });
     });
+    describe('sendVideo', () => {
+        it('should throw an error if neither file_path nor URL is provided', async () => {
+            try {
+                await whatsappCloud.sendVideo({
+                    recipientPhone: process.env.RECIPIENTPHONE!,
+                });
+            } catch (error) {
+                expect(error.message).toBe(
+                    'You must send an video in your "file_path" or an video in a publicly available "url". Provide either "file_path" or "url".'
+                );
+            }
+        });
+        it('should throw an error if both file_path and URL are provided', async () => {
+            try {
+                await whatsappCloud.sendVideo({
+                    recipientPhone: process.env.RECIPIENTPHONE!,
+                    file_path: '',
+                    url: '',
+                });
+            } catch (error) {
+                expect(error.message).toBe(
+                    'You must send an video in your "file_path" or an video in a publicly available "url". Provide either "file_path" or "url".'
+                );
+            }
+        });
+
+        it('should send a video from the file_path', async () => {
+            const response = await whatsappCloud.sendAudio({
+                recipientPhone: process.env.RECIPIENTPHONE!,
+                file_path: 'example.mp4',
+            });
+            expect(response.response.status).toBe('success');
+        });
+    });
+
 });

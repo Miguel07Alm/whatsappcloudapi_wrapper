@@ -156,7 +156,7 @@ class WhatsappCloud {
         }
     }
 
-    private async _retrieveMediaUrl({
+    async _retrieveMediaUrl({
         media_id,
     }: {
         media_id: string;
@@ -173,7 +173,7 @@ class WhatsappCloud {
         throw new Error(response.error);
     }
 
-    private async UNTESTED_downloadMediaViaUrl({
+    async UNTESTED_downloadMediaViaUrl({
         media_url,
     }: {
         media_url: string;
@@ -657,6 +657,7 @@ class WhatsappCloud {
         file_path,
         file_name,
         url,
+        context,
     }: CaptionOptions) {
         this._mustHaveParameter(recipientPhone, 'recipientPhone');
         if (file_path && url) {
@@ -677,6 +678,10 @@ class WhatsappCloud {
             to: recipientPhone,
             type: 'video',
         };
+        if (context) {
+            body['context'] = context;
+            this._mustHaveParameter(context['message_id'], 'message_id');
+        }
         if (file_path) {
             let uploadedFile = await this._uploadMedia({
                 file_path,
@@ -724,7 +729,7 @@ class WhatsappCloud {
             recipient_type: 'individual',
             to: recipientPhone,
             type: 'audio',
-            audio: {}
+            audio: {},
         };
         if (context) {
             body['context'] = context;
@@ -1032,8 +1037,8 @@ class WhatsappCloud {
 
     async getUserStatusPicture({ recipientPhone }) {}
     private isValidDate(dateObject) {
-                    return new Date(dateObject).toString() !== 'Invalid Date';
-                }
+        return new Date(dateObject).toString() !== 'Invalid Date';
+    }
     parseMessage(requestBody) {
         return messageParser({ requestBody, currentWABA_ID: this.WABA_ID });
     }
